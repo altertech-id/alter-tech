@@ -1,0 +1,23 @@
+services:
+  altertech:
+    build: .
+    container_name: altertech-app
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.altertech.rule=Host(`altertech.id`) || Host(`www.altertech.id`)"
+      - "traefik.http.routers.altertech.entrypoints=websecure"
+      - "traefik.http.routers.altertech.tls.certresolver=letsencrypt"
+      - "traefik.http.services.altertech.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+networks:
+  traefik-public:
+    external: true
