@@ -61,31 +61,59 @@
     publishTarget = null;
   }
 
+  const todayStr = () => new Date().toISOString().split('T')[0];
+  const nextYearStr = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split('T')[0];
+  };
+
   let formData = $state({
     id: '',
     project_name: '',
     client_name: '',
+    client_pic: '',
     client_contact: '',
     current_stage: 'Kualifikasi',
     progress_percent: 0,
     notes: '',
     package_type: 'Starter',
+    deal_amount: 800000,
     payment_status: 'Pending',
+    domain_url: '',
+    domain_bought_at: todayStr(),
+    domain_duration_years: 1,
+    domain_price: 150000,
+    has_maintenance: false,
+    maintenance_fee: 600000,
+    maintenance_due_date: nextYearStr(),
     costs: []
   });
 
   function openCreate() {
     isEditing = false;
+    const defaultPkg = packages[0]?.name || 'Starter';
+    const defaultPrice = packages[0]?.price || 800000;
+    const defaultRenewal = packages[0]?.renewal_price || 600000;
     formData = {
       id: '',
       project_name: '',
       client_name: '',
+      client_pic: '',
       client_contact: '',
       current_stage: 'Kualifikasi',
       progress_percent: 0,
       notes: '',
-      package_type: 'Starter',
+      package_type: defaultPkg,
+      deal_amount: defaultPrice,
       payment_status: 'Pending',
+      domain_url: '',
+      domain_bought_at: todayStr(),
+      domain_duration_years: 1,
+      domain_price: 150000,
+      has_maintenance: false,
+      maintenance_fee: defaultRenewal,
+      maintenance_due_date: nextYearStr(),
       costs: []
     };
     modalOpen = true;
@@ -94,18 +122,74 @@
   function openEdit(project) {
     isEditing = true;
     formData = JSON.parse(JSON.stringify(project));
+    formData.client_pic = formData.client_pic || '';
+    formData.client_contact = formData.client_contact || '';
+    if (formData.deal_amount === undefined || formData.deal_amount === null || formData.deal_amount === 0) {
+      const found = packages.find(p => p.name === formData.package_type);
+      formData.deal_amount = found?.price ?? 0;
+    }
+    if (!formData.domain_duration_years) {
+      formData.domain_duration_years = 1;
+    }
+    if (formData.domain_price === undefined || formData.domain_price === null) {
+      formData.domain_price = 150000;
+    }
+    if (!formData.domain_bought_at) {
+      formData.domain_bought_at = formData.started_at || todayStr();
+    }
+    if (formData.has_maintenance === undefined || formData.has_maintenance === null) {
+      formData.has_maintenance = false;
+    }
+    if (!formData.maintenance_fee) {
+      const found = packages.find(p => p.name === formData.package_type);
+      formData.maintenance_fee = found?.renewal_price ?? 600000;
+    }
+    if (!formData.maintenance_due_date) {
+      formData.maintenance_due_date = nextYearStr();
+    }
     modalOpen = true;
+  }
+
+  function handlePackageChange(newPkg) {
+    formData.package_type = newPkg;
+    const found = packages.find(p => p.name === newPkg);
+    if (found) {
+      formData.deal_amount = found.price;
+      if (found.renewal_price) {
+        formData.maintenance_fee = found.renewal_price;
+      }
+    }
+  }
+
+  function getProjectDeal(p) {
+    if (p.deal_amount && Number(p.deal_amount) > 0) return Number(p.deal_amount);
+    return packages.find(pkg => pkg.name === p.package_type)?.price || 0;
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (isEditing) {
-      await updateProject(formData.id, formData);
-    } else {
-      await createProject(formData);
+    const payload = {
+      ...formData,
+      client_pic: formData.client_pic || formData.client_name,
+      deal_amount: Number(formData.deal_amount) || 0,
+      domain_duration_years: Number(formData.domain_duration_years) || 1,
+      domain_price: Number(formData.domain_price) || 0,
+      has_maintenance: Boolean(formData.has_maintenance),
+      maintenance_fee: Number(formData.maintenance_fee) || 0,
+      domain_bought_at: formData.domain_bought_at || null,
+      maintenance_due_date: formData.has_maintenance ? (formData.maintenance_due_date || null) : null
+    };
+    try {
+      if (isEditing) {
+        await updateProject(formData.id, payload);
+      } else {
+        await createProject(payload);
+      }
+      await invalidateAll();
+      modalOpen = false;
+    } catch (err) {
+      alert('Gagal menyimpan project: ' + err.message);
     }
-    await invalidateAll();
-    modalOpen = false;
   }
 
   async function handleDelete(id) {
@@ -143,6 +227,8 @@
             <th>Invoice</th>
             <th>Project</th>
             <th>Klien</th>
+            <th>Paket</th>
+            <th class="text-right">Nilai Deal</th>
             <th>Tahap</th>
             <th>Progress</th>
             <th>Status Bayar</th>
@@ -154,7 +240,18 @@
             <tr>
               <td class="font-mono text-sm">{p.invoice_code}</td>
               <td class="font-medium">{p.project_name}</td>
-              <td>{p.client_name}</td>
+              <td>
+                <div class="client-cell">
+                  <span class="client-name font-medium">{p.client_name}</span>
+                  {#if p.client_contact}
+                    <span class="client-pic-sub">
+                      WA: {p.client_contact}
+                    </span>
+                  {/if}
+                </div>
+              </td>
+              <td><span class="badge badge-package">{p.package_type}</span></td>
+              <td class="text-right font-semibold text-primary">{formatMoney(getProjectDeal(p))}</td>
               <td><span class="badge">{p.current_stage}</span></td>
               <td>
                 <div class="progress-bar-small">
@@ -176,7 +273,7 @@
           {/each}
           {#if projects.length === 0}
             <tr>
-              <td colspan="7" class="text-center py-4">Belum ada data project.</td>
+              <td colspan="9" class="text-center py-4">Belum ada data project.</td>
             </tr>
           {/if}
         </tbody>
@@ -187,27 +284,50 @@
 <Modal bind:open={modalOpen} title={isEditing ? 'Edit Project' : 'Project Baru'}>
   <form onsubmit={handleSubmit} class="form-grid">
     <div class="form-group">
-      <label for="project_name">Nama Project</label>
-      <input type="text" id="project_name" bind:value={formData.project_name} required class="form-input" />
-    </div>
-
-    <div class="form-group">
-      <label for="client_name">Nama Klien</label>
-      <input type="text" id="client_name" bind:value={formData.client_name} required class="form-input" />
+      <label for="project_name">Nama Project / Bisnis</label>
+      <input type="text" id="project_name" bind:value={formData.project_name} required class="form-input" placeholder="Contoh: Website Toko Bintang Jaya / CV Makmur" />
     </div>
 
     <div class="form-row">
       <div class="form-group">
-        <label for="client_contact">Kontak Klien (WA)</label>
-        <input type="text" id="client_contact" bind:value={formData.client_contact} class="form-input" />
+        <label for="client_name">Nama Klien (PIC)</label>
+        <input type="text" id="client_name" bind:value={formData.client_name} required class="form-input" placeholder="Contoh: Budi Santoso / Dr. Rini Wulandari" />
       </div>
       <div class="form-group">
+        <label for="client_contact">Kontak WhatsApp</label>
+        <input type="text" id="client_contact" bind:value={formData.client_contact} class="form-input" placeholder="Contoh: 08123456789" />
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
         <label for="package_type">Paket</label>
-        <select id="package_type" bind:value={formData.package_type} class="form-input">
+        <select
+          id="package_type"
+          value={formData.package_type}
+          onchange={(e) => handlePackageChange(e.target.value)}
+          class="form-input"
+        >
           {#each packages as pkg}
             <option value={pkg.name}>{pkg.name}</option>
           {/each}
         </select>
+      </div>
+      <div class="form-group">
+        <label for="deal_amount">Nilai Deal / Biaya Project (Rp)</label>
+        <input
+          type="number"
+          id="deal_amount"
+          bind:value={formData.deal_amount}
+          min="0"
+          step="50000"
+          required
+          class="form-input"
+          placeholder="Nilai kesepakatan deal"
+        />
+        {#if formData.deal_amount}
+          <span class="help-text-amount">{formatMoney(formData.deal_amount)}</span>
+        {/if}
       </div>
     </div>
 
@@ -235,6 +355,62 @@
           <option value="Lunas">Lunas</option>
         </select>
       </div>
+    </div>
+
+    <!-- Domain & Maintenance Section -->
+    <div class="domain-maintenance-box">
+      <div class="subheading">Domain & Maintenance</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="domain_url">Link Domain / Website</label>
+          <input type="text" id="domain_url" bind:value={formData.domain_url} class="form-input" placeholder="contoh: bintangjaya.com" />
+        </div>
+        <div class="form-group">
+          <label for="domain_price">Biaya Renewal Domain (Rp/thn)</label>
+          <input type="number" id="domain_price" bind:value={formData.domain_price} min="0" step="10000" class="form-input" placeholder="150000" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="domain_bought_at">Tanggal Beli Domain</label>
+          <input type="date" id="domain_bought_at" bind:value={formData.domain_bought_at} class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="domain_duration_years">Paket Pembelian Domain</label>
+          <select id="domain_duration_years" bind:value={formData.domain_duration_years} class="form-input">
+            <option value={1}>1 Tahun</option>
+            <option value={2}>2 Tahun</option>
+            <option value={3}>3 Tahun</option>
+            <option value={5}>5 Tahun</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="maintenance-check-wrap">
+        <label class="checkbox-label">
+          <input type="checkbox" bind:checked={formData.has_maintenance} />
+          <span class="checkbox-text font-medium">Klien Mengambil Paket Maintenance Altertech (Server &amp; Support)</span>
+        </label>
+      </div>
+
+      {#if formData.has_maintenance}
+        <div class="form-row mt-2">
+          <div class="form-group">
+            <label for="maintenance_fee">Biaya Maintenance Tahunan (Rp)</label>
+            <input type="number" id="maintenance_fee" bind:value={formData.maintenance_fee} min="0" step="50000" class="form-input" placeholder="600000" />
+            {#if formData.maintenance_fee}
+              <span class="help-text-amount">{formatMoney(formData.maintenance_fee)} / thn</span>
+            {/if}
+          </div>
+          <div class="form-group">
+            <label for="maintenance_due_date">Tanggal Jatuh Tempo Maintenance</label>
+            <input type="date" id="maintenance_due_date" bind:value={formData.maintenance_due_date} class="form-input" />
+          </div>
+        </div>
+        <div class="renewal-calc-preview">
+          Estimasi Total Tagihan Perpanjangan: <strong>{formatMoney((formData.maintenance_fee || 0) + (formData.domain_price || 0))}</strong> (Maintenance + Domain)
+        </div>
+      {/if}
     </div>
 
     <div class="form-group">
@@ -386,6 +562,36 @@
   .actions-col {
     text-align: right;
     white-space: nowrap;
+  }
+
+  .client-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .client-pic-sub {
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+
+  .text-right { text-align: right; }
+  .font-semibold { font-weight: 600; }
+
+  .help-text-amount {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-primary);
+    margin-top: 4px;
+    display: block;
+  }
+
+  .badge-package {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+    font-size: 11px;
+    font-weight: 600;
   }
 
   .action-btn {
@@ -581,6 +787,58 @@
     font-size: 14px;
     text-align: right;
   }
+
+  .domain-maintenance-box {
+    background: var(--color-surface-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .subheading {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+  }
+
+  .checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .checkbox-text {
+    font-size: 13px;
+    color: var(--color-text-primary);
+  }
+
+  .maintenance-check-wrap {
+    padding-top: var(--space-1);
+  }
+
+  .renewal-calc-preview {
+    margin-top: var(--space-2);
+    padding: 8px 12px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: #166534;
+  }
+
+  .mt-2 { margin-top: var(--space-2); }
 
   .form-actions {
     display: flex;

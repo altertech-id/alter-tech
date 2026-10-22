@@ -15,6 +15,7 @@
   const navItems = [
     { label: 'Dashboard', href: '/admin', icon: 'grid' },
     { label: 'Projects', href: '/admin/projects', icon: 'folder' },
+    { label: 'Maintenance', href: '/admin/maintenance', icon: 'wrench' },
     { label: 'Portfolio', href: '/admin/portfolio', icon: 'image' },
     { label: 'Packages', href: '/admin/packages', icon: 'package' },
     { label: 'Laporan Keuangan', href: '/admin/financial-report', icon: 'bar-chart' },

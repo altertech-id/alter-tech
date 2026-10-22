@@ -25,3 +25,7 @@ vite.config.ts.timestamp-*
 # Scratch
 coba lagi.html
 
+# Local Dev Data Store
+data/local-*.json
+data/*.sqlite
+

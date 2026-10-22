@@ -4,6 +4,9 @@
  * applies under the logged-in admin's session.
  */
 
+import { readLocalProjects, mergeWithLocal, getLocalProjectById } from './local-db.js';
+import { MOCK_PROJECTS } from '$lib/data/mock.js';
+
 const PROJECT_WITH_COSTS = '*, costs:project_costs(*)';
 
 /** Throw a tidy error if Supabase returned one. */
@@ -17,19 +20,50 @@ export async function listProjectsWithCosts(supabase) {
 		.from('projects')
 		.select(PROJECT_WITH_COSTS)
 		.order('updated_at', { ascending: false });
+
+	if (import.meta.env.DEV) {
+		if (error) {
+			console.warn('Supabase fetch failed in dev, using local fallback:', error.message);
+		}
+		const remoteProjects = Array.isArray(data) && data.length > 0 ? data : MOCK_PROJECTS;
+		return mergeWithLocal(remoteProjects);
+	}
+
+	// Production: strict Supabase sync
 	check(error, 'Gagal memuat projects');
-	return data ?? [];
+	return (data ?? []).map((p) => ({
+		...p,
+		client_pic: p.client_pic || p.client_name || ''
+	}));
 }
 
 /** Fetch one project with costs. */
 export async function getProjectWithCosts(supabase, id) {
+	if (import.meta.env.DEV) {
+		const local = readLocalProjects();
+		if (local) {
+			const found = local.find((p) => p.id === id);
+			if (found) return found;
+		}
+	}
+
 	const { data, error } = await supabase
 		.from('projects')
 		.select(PROJECT_WITH_COSTS)
 		.eq('id', id)
 		.maybeSingle();
+
+	if (import.meta.env.DEV && error) {
+		console.warn('Supabase getProject warning in dev:', error.message);
+		return null;
+	}
+
 	check(error, 'Gagal memuat project');
-	return data;
+	if (!data) return null;
+	return {
+		...data,
+		client_pic: data.client_pic || data.client_name || ''
+	};
 }
 
 /** Replace a project's cost rows with the supplied list. */

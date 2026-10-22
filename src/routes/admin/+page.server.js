@@ -11,8 +11,9 @@ export async function load({ locals }) {
 		if (pkgErr) throw error(500, pkgErr.message);
 
 		const priceOf = (type) => packages?.find((p) => p.name === type)?.price ?? 0;
+		const revOf = (p) => (Number(p.deal_amount) > 0 ? Number(p.deal_amount) : priceOf(p.package_type));
 
-		const totalRevenue = projects.reduce((sum, p) => sum + priceOf(p.package_type), 0);
+		const totalRevenue = projects.reduce((sum, p) => sum + revOf(p), 0);
 		const totalExpense = projects.reduce(
 			(sum, p) => sum + (p.costs ?? []).reduce((cs, c) => cs + c.amount, 0),
 			0

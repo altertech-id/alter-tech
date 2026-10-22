@@ -24,7 +24,8 @@ export function computeMonthly(projects, priceOf) {
 		if (Number.isNaN(d.getTime())) continue;
 		const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
 		const bucket = buckets.get(key) ?? { revenue: 0, expense: 0 };
-		bucket.revenue += priceOf(p.package_type);
+		const rev = Number(p.deal_amount) > 0 ? Number(p.deal_amount) : priceOf(p.package_type);
+		bucket.revenue += rev;
 		bucket.expense += expenseOf(p);
 		buckets.set(key, bucket);
 	}
@@ -41,7 +42,7 @@ export function computeMonthly(projects, priceOf) {
 /** Per-project profitability rows + totals (financial report). */
 export function computeReport(projects, priceOf) {
 	const rows = projects.map((p) => {
-		const revenue = priceOf(p.package_type);
+		const revenue = Number(p.deal_amount) > 0 ? Number(p.deal_amount) : priceOf(p.package_type);
 		const expense = expenseOf(p);
 		const profit = revenue - expense;
 		return {
