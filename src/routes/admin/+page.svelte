@@ -1,16 +1,8 @@
 <script>
   import Card from '$lib/components/Card.svelte';
-  import { fetchDashboard } from '$lib/data/api.js';
 
-  let summary = $state(null);
-  let loading = $state(true);
-
-  $effect(() => {
-    fetchDashboard().then(data => {
-      summary = data;
-      loading = false;
-    });
-  });
+  let { data } = $props();
+  let summary = $derived(data.summary);
 
   function formatMoney(amount) {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
@@ -24,9 +16,7 @@
 </script>
 
 <div class="dashboard">
-  {#if loading}
-    <div class="loading-state">Memuat data dashboard...</div>
-  {:else if summary}
+  {#if summary}
     <!-- Top Stats Cards -->
     <div class="stats-grid">
       <Card>
@@ -120,11 +110,6 @@
     gap: var(--space-5);
   }
 
-  .loading-state {
-    padding: var(--space-8);
-    text-align: center;
-    color: var(--color-text-secondary);
-  }
 
   .stats-grid {
     display: grid;

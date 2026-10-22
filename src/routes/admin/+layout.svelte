@@ -1,7 +1,7 @@
 <script>
   import { logout } from '$lib/data/api.js';
   import { goto, invalidateAll } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page, navigating } from '$app/stores';
   import Icon from '$lib/components/Icon.svelte';
   import '../../app.css'; // Ensure global styles are loaded if this layout is independent
 
@@ -38,6 +38,9 @@
 {#if $page.url.pathname === '/admin/login'}
   {@render children()}
 {:else if user}
+  {#if $navigating}
+    <div class="top-progress-bar"></div>
+  {/if}
   <div class="admin-layout">
     <!-- Sidebar Desktop / Overlay Mobile -->
     {#if mobileSidebarOpen}
@@ -53,6 +56,7 @@
         {#each navItems as item}
           <a
             href={item.href}
+            data-sveltekit-preload-data="hover"
             class="nav-item"
             class:active={$page.url.pathname === item.href || ($page.url.pathname.startsWith(item.href) && item.href !== '/admin')}
             onclick={() => mobileSidebarOpen = false}
@@ -315,6 +319,23 @@
       z-index: 99;
       animation: fadeIn 200ms;
     }
+  }
+
+  .top-progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #2596BE, #38bdf8, #2596BE);
+    background-size: 200% 100%;
+    z-index: 99999;
+    animation: loadingBar 1.2s infinite ease-in-out;
+  }
+
+  @keyframes loadingBar {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   @keyframes fadeIn {

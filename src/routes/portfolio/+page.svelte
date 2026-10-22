@@ -2,16 +2,12 @@
   import Card from '$lib/components/Card.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import Button from '$lib/components/Button.svelte';
-  import { fetchPortfolio } from '$lib/data/api.js';
   import { onMount } from 'svelte';
 
-  let items = $state([]);
+  let { data } = $props();
+  let items = $derived(data.items);
   let selectedItem = $state(null);
   let modalOpen = $state(false);
-
-  $effect(() => {
-    fetchPortfolio().then(data => { items = data; });
-  });
 
   function openDetail(item) {
     selectedItem = item;

@@ -2,13 +2,13 @@
   import Card from '$lib/components/Card.svelte';
   import Button from '$lib/components/Button.svelte';
   import Modal from '$lib/components/Modal.svelte';
-  import { fetchProjects, createProject, updateProject, deleteProject, publishProjectToPortfolio, uploadImage } from '$lib/data/api.js';
-  import { fetchPackages } from '$lib/data/api.js';
+  import { invalidateAll } from '$app/navigation';
+  import { createProject, updateProject, deleteProject, publishProjectToPortfolio, uploadImage } from '$lib/data/api.js';
   import { PROJECT_STAGES } from '$lib/data/mock.js';
 
-  let projects = $state([]);
-  let packages = $state([]);
-  let loading = $state(true);
+  let { data } = $props();
+  let projects = $derived(data.projects ?? []);
+  let packages = $derived(data.packages ?? []);
   let modalOpen = $state(false);
   let isEditing = $state(false);
 
@@ -55,7 +55,7 @@
       publishError = result.error || 'Gagal mempublikasikan.';
       return;
     }
-    projects = await fetchProjects();
+    await invalidateAll();
     publishModalOpen = false;
     publishPhoto = '';
     publishTarget = null;
@@ -72,14 +72,6 @@
     package_type: 'Starter',
     payment_status: 'Pending',
     costs: []
-  });
-
-  $effect(() => {
-    Promise.all([fetchProjects(), fetchPackages()]).then(([projData, pkgData]) => {
-      projects = projData;
-      packages = pkgData;
-      loading = false;
-    });
   });
 
   function openCreate() {
@@ -112,14 +104,14 @@
     } else {
       await createProject(formData);
     }
-    projects = await fetchProjects();
+    await invalidateAll();
     modalOpen = false;
   }
 
   async function handleDelete(id) {
     if (confirm('Yakin ingin menghapus project ini?')) {
       await deleteProject(id);
-      projects = await fetchProjects();
+      await invalidateAll();
     }
   }
 
@@ -144,11 +136,8 @@
 </div>
 
 <Card>
-  {#if loading}
-    <div class="loading-state">Memuat data project...</div>
-  {:else}
-    <div class="table-responsive">
-      <table class="data-table">
+  <div class="table-responsive">
+    <table class="data-table">
         <thead>
           <tr>
             <th>Invoice</th>
@@ -193,7 +182,6 @@
         </tbody>
       </table>
     </div>
-  {/if}
 </Card>
 
 <Modal bind:open={modalOpen} title={isEditing ? 'Edit Project' : 'Project Baru'}>
@@ -331,11 +319,6 @@
     font-weight: 700;
   }
 
-  .loading-state {
-    padding: var(--space-8);
-    text-align: center;
-    color: var(--color-text-secondary);
-  }
 
   .table-responsive {
     overflow-x: auto;

@@ -2,10 +2,11 @@
   import Card from '$lib/components/Card.svelte';
   import Button from '$lib/components/Button.svelte';
   import Modal from '$lib/components/Modal.svelte';
-  import { fetchAllPortfolio, createPortfolioItem, updatePortfolioItem, deletePortfolioItem, uploadImage } from '$lib/data/api.js';
+  import { invalidateAll } from '$app/navigation';
+  import { createPortfolioItem, updatePortfolioItem, deletePortfolioItem, uploadImage } from '$lib/data/api.js';
 
-  let items = $state([]);
-  let loading = $state(true);
+  let { data } = $props();
+  let items = $derived(data.items ?? []);
   let modalOpen = $state(false);
   let isEditing = $state(false);
   let uploading = $state(false);
@@ -19,13 +20,6 @@
     website_url: '',
     is_confidential: false,
     sort_order: 1
-  });
-
-  $effect(() => {
-    fetchAllPortfolio().then(data => {
-      items = data;
-      loading = false;
-    });
   });
 
   function openCreate() {
@@ -75,14 +69,14 @@
     } else {
       await createPortfolioItem(formData);
     }
-    items = await fetchAllPortfolio();
+    await invalidateAll();
     modalOpen = false;
   }
 
   async function handleDelete(id) {
     if (confirm('Yakin ingin menghapus item portfolio ini?')) {
       await deletePortfolioItem(id);
-      items = await fetchAllPortfolio();
+      await invalidateAll();
     }
   }
 </script>
@@ -95,11 +89,8 @@
 </div>
 
 <Card>
-  {#if loading}
-    <div class="loading-state">Memuat data portfolio...</div>
-  {:else}
-    <div class="table-responsive">
-      <table class="data-table">
+  <div class="table-responsive">
+    <table class="data-table">
         <thead>
           <tr>
             <th class="w-12">Urutan</th>
@@ -142,7 +133,6 @@
         </tbody>
       </table>
     </div>
-  {/if}
 </Card>
 
 <Modal bind:open={modalOpen} title={isEditing ? 'Edit Portfolio' : 'Portfolio Baru'}>
@@ -215,11 +205,6 @@
     font-weight: 700;
   }
 
-  .loading-state {
-    padding: var(--space-8);
-    text-align: center;
-    color: var(--color-text-secondary);
-  }
 
   .table-responsive {
     overflow-x: auto;

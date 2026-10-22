@@ -3,10 +3,11 @@
   import Button from '$lib/components/Button.svelte';
   import Modal from '$lib/components/Modal.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import { fetchAllPackages, updatePackage } from '$lib/data/api.js';
+  import { invalidateAll } from '$app/navigation';
+  import { updatePackage } from '$lib/data/api.js';
 
-  let packages = $state([]);
-  let loading = $state(true);
+  let { data } = $props();
+  let packages = $derived(data.packages ?? []);
   let modalOpen = $state(false);
 
   let formData = $state({
@@ -19,13 +20,6 @@
     features: []
   });
 
-  $effect(() => {
-    fetchAllPackages().then(data => {
-      packages = data;
-      loading = false;
-    });
-  });
-
   function openEdit(pkg) {
     formData = JSON.parse(JSON.stringify(pkg));
     modalOpen = true;
@@ -34,7 +28,7 @@
   async function handleSubmit(e) {
     e.preventDefault();
     await updatePackage(formData.id, formData);
-    packages = await fetchAllPackages();
+    await invalidateAll();
     modalOpen = false;
   }
 
@@ -60,10 +54,7 @@
   <p class="text-secondary text-sm">Paket bawaan sistem. Anda dapat mengedit detail dan fiturnya.</p>
 </div>
 
-{#if loading}
-  <div class="loading-state">Memuat data paket...</div>
-{:else}
-  <div class="packages-grid">
+<div class="packages-grid">
     {#each packages as pkg}
       <Card>
         <div class="pkg-card">
@@ -104,7 +95,6 @@
       </Card>
     {/each}
   </div>
-{/if}
 
 <Modal bind:open={modalOpen} title="Edit Paket">
   <form onsubmit={handleSubmit} class="form-grid">
@@ -183,11 +173,6 @@
   .text-secondary { color: var(--color-text-secondary); }
   .text-sm { font-size: 14px; margin-top: var(--space-1); }
 
-  .loading-state {
-    padding: var(--space-8);
-    text-align: center;
-    color: var(--color-text-secondary);
-  }
 
   .packages-grid {
     display: grid;

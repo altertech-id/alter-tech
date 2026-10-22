@@ -1,18 +1,10 @@
 <script>
   import Card from '$lib/components/Card.svelte';
   import Button from '$lib/components/Button.svelte';
-  import { fetchFinancialReport } from '$lib/data/api.js';
 
-  let report = $state(null);
-  let loading = $state(true);
+  let { data } = $props();
+  let report = $derived(data.report);
   let selectedMonth = $state('all');
-
-  $effect(() => {
-    fetchFinancialReport().then(data => {
-      report = data;
-      loading = false;
-    });
-  });
 
   // Monthly rows filtered by the period selector
   let visibleMonths = $derived(
@@ -71,9 +63,7 @@
   </div>
 </div>
 
-{#if loading}
-  <div class="loading-state">Memuat laporan keuangan...</div>
-{:else if report}
+{#if report}
   <!-- Period Filter -->
   <div class="filter-bar">
     <label for="period" class="filter-label">Periode</label>
@@ -214,11 +204,6 @@
     gap: var(--space-2);
   }
 
-  .loading-state {
-    padding: var(--space-8);
-    text-align: center;
-    color: var(--color-text-secondary);
-  }
 
   .filter-bar {
     display: flex;
