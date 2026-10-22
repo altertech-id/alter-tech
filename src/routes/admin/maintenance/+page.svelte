@@ -46,6 +46,18 @@
     return d.toISOString().split('T')[0];
   }
 
+  // Automatic calculation of maintenance due date (defaults to 1 year from domain purchase or start date)
+  function getMaintenanceDueDate(p) {
+    if (p.maintenance_due_date) return p.maintenance_due_date;
+    if (!p.has_maintenance) return null;
+    const baseDate = p.domain_bought_at || p.started_at;
+    if (!baseDate) return null;
+    const d = new Date(baseDate);
+    if (Number.isNaN(d.getTime())) return null;
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split('T')[0];
+  }
+
   function getDaysUntil(dateStr) {
     if (!dateStr) return null;
     const target = new Date(dateStr);
@@ -60,8 +72,9 @@
 
   function getMaintenanceStatus(p) {
     if (!p.has_maintenance) return 'none';
-    if (!p.maintenance_due_date) return 'active';
-    const days = getDaysUntil(p.maintenance_due_date);
+    const dueDate = getMaintenanceDueDate(p);
+    if (!dueDate) return 'active';
+    const days = getDaysUntil(dueDate);
     if (days === null) return 'active';
     if (days < 0) return 'overdue';
     if (days <= 30) return 'due_soon';
@@ -147,7 +160,7 @@
 
     const greetingName = p.client_name || p.client_pic || 'Bapak/Ibu';
     const domainText = p.domain_url ? p.domain_url : p.project_name;
-    const dueDate = p.maintenance_due_date ? formatDate(p.maintenance_due_date) : formatDate(getDomainExpiry(p));
+    const dueDate = formatDate(getMaintenanceDueDate(p) || getDomainExpiry(p));
     const totalFee = formatMoney(getTotalRenewalFee(p));
 
     let breakdown = '';
@@ -177,6 +190,7 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
   // Quick Edit Modal
   function openQuickEdit(p) {
     editTarget = p;
+    const autoDue = getMaintenanceDueDate(p) || '';
     editForm = {
       client_name: p.client_name || p.client_pic || '',
       client_pic: p.client_pic || p.client_name || '',
@@ -187,15 +201,34 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
       domain_price: p.domain_price ?? 150000,
       has_maintenance: Boolean(p.has_maintenance),
       maintenance_fee: p.maintenance_fee ?? 600000,
-      maintenance_due_date: p.maintenance_due_date || ''
+      maintenance_due_date: p.maintenance_due_date || autoDue
     };
     editModalOpen = true;
+  }
+
+  function handleQuickEditDomainDate() {
+    if (editForm.domain_bought_at) {
+      const d = new Date(editForm.domain_bought_at);
+      if (!Number.isNaN(d.getTime())) {
+        d.setFullYear(d.getFullYear() + 1);
+        editForm.maintenance_due_date = d.toISOString().split('T')[0];
+      }
+    }
   }
 
   async function handleQuickEditSave(e) {
     e.preventDefault();
     if (!editTarget) return;
     saving = true;
+
+    // Automatically calculate 1 year if maintenance is active and due date wasn't manually specified
+    let finalDueDate = editForm.maintenance_due_date;
+    if (editForm.has_maintenance && !finalDueDate) {
+      const base = editForm.domain_bought_at ? new Date(editForm.domain_bought_at) : new Date();
+      base.setFullYear(base.getFullYear() + 1);
+      finalDueDate = base.toISOString().split('T')[0];
+    }
+
     try {
       await updateProject(editTarget.id, {
         client_name: editForm.client_name || null,
@@ -207,7 +240,7 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
         domain_price: Number(editForm.domain_price) || 0,
         has_maintenance: Boolean(editForm.has_maintenance),
         maintenance_fee: Number(editForm.maintenance_fee) || 0,
-        maintenance_due_date: editForm.has_maintenance ? (editForm.maintenance_due_date || null) : null
+        maintenance_due_date: editForm.has_maintenance ? finalDueDate : null
       });
       await invalidateAll();
       editModalOpen = false;
@@ -323,19 +356,20 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
         <thead>
           <tr>
             <th>Klien (PIC) &amp; Bisnis</th>
-            <th>Kontak WhatsApp</th>
+            <th>Kontak</th>
             <th>Domain &amp; Masa Aktif</th>
-            <th>Status Maintenance</th>
-            <th>Jatuh Tempo Maintenance</th>
+            <th>Status</th>
+            <th>Jatuh Tempo</th>
             <th class="text-right">Total Tagihan</th>
-            <th class="actions-col">Aksi Reminder</th>
+            <th class="actions-col">Aksi</th>
           </tr>
         </thead>
         <tbody>
           {#each filteredProjects as p}
             {@const domExpiry = getDomainExpiry(p)}
             {@const domDays = domExpiry ? getDaysUntil(domExpiry) : null}
-            {@const maintDays = p.maintenance_due_date ? getDaysUntil(p.maintenance_due_date) : null}
+            {@const maintDue = getMaintenanceDueDate(p)}
+            {@const maintDays = maintDue ? getDaysUntil(maintDue) : null}
             {@const maintStatus = getMaintenanceStatus(p)}
 
             <tr>
@@ -420,11 +454,11 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
                 {/if}
               </td>
 
-              <!-- Jatuh Tempo Maintenance -->
+              <!-- Jatuh Tempo -->
               <td>
-                {#if p.has_maintenance && p.maintenance_due_date}
+                {#if p.has_maintenance && maintDue}
                   <div class="due-cell">
-                    <span class="font-medium">{formatDate(p.maintenance_due_date)}</span>
+                    <span class="font-medium">{formatDate(maintDue)}</span>
                     {#if maintDays !== null}
                       {#if maintDays < 0}
                         <span class="text-xs text-error font-semibold">Lewat {Math.abs(maintDays)} hari!</span>
@@ -454,10 +488,10 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
                   <button
                     class="btn-wa"
                     onclick={() => openWhatsAppReminder(p)}
-                    title="Kirim Template Reminder WhatsApp ke Klien"
+                    title="Kirim pesan WhatsApp"
                   >
-                    <Icon name="phone" size={14} />
-                    Reminder WA
+                    <Icon name="phone" size={13} />
+                    WA
                   </button>
 
                   <button
@@ -522,7 +556,7 @@ Layanan server dan domain akan diperpanjang secara otomatis setelah konfirmasi p
       <div class="form-row">
         <div class="form-group">
           <label for="edit_domain_bought_at">Tanggal Beli Domain</label>
-          <input type="date" id="edit_domain_bought_at" bind:value={editForm.domain_bought_at} class="form-input" />
+          <input type="date" id="edit_domain_bought_at" bind:value={editForm.domain_bought_at} onchange={handleQuickEditDomainDate} class="form-input" />
         </div>
         <div class="form-group">
           <label for="edit_domain_duration">Durasi Beli</label>

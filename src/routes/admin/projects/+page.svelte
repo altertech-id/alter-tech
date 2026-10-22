@@ -150,6 +150,16 @@
     modalOpen = true;
   }
 
+  function handleDomainBoughtChange() {
+    if (formData.domain_bought_at) {
+      const d = new Date(formData.domain_bought_at);
+      if (!Number.isNaN(d.getTime())) {
+        d.setFullYear(d.getFullYear() + 1);
+        formData.maintenance_due_date = d.toISOString().split('T')[0];
+      }
+    }
+  }
+
   function handlePackageChange(newPkg) {
     formData.package_type = newPkg;
     const found = packages.find(p => p.name === newPkg);
@@ -168,6 +178,14 @@
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    let maintDueDate = formData.has_maintenance ? (formData.maintenance_due_date || null) : null;
+    if (formData.has_maintenance && !maintDueDate) {
+      const base = formData.domain_bought_at ? new Date(formData.domain_bought_at) : new Date();
+      base.setFullYear(base.getFullYear() + 1);
+      maintDueDate = base.toISOString().split('T')[0];
+    }
+
     const payload = {
       ...formData,
       client_pic: formData.client_pic || formData.client_name,
@@ -177,7 +195,7 @@
       has_maintenance: Boolean(formData.has_maintenance),
       maintenance_fee: Number(formData.maintenance_fee) || 0,
       domain_bought_at: formData.domain_bought_at || null,
-      maintenance_due_date: formData.has_maintenance ? (formData.maintenance_due_date || null) : null
+      maintenance_due_date: maintDueDate
     };
     try {
       if (isEditing) {
@@ -373,7 +391,7 @@
       <div class="form-row">
         <div class="form-group">
           <label for="domain_bought_at">Tanggal Beli Domain</label>
-          <input type="date" id="domain_bought_at" bind:value={formData.domain_bought_at} class="form-input" />
+          <input type="date" id="domain_bought_at" bind:value={formData.domain_bought_at} onchange={handleDomainBoughtChange} class="form-input" />
         </div>
         <div class="form-group">
           <label for="domain_duration_years">Paket Pembelian Domain</label>
